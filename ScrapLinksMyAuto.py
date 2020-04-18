@@ -78,7 +78,12 @@ def saveCSV(car_url, car_data_dict):
 
 
 if __name__ == "__main__":
-    folder = 'data00'
+    # read links
+    linksFile = open('SabaLinks.txt', 'r')
+    links = [line.rstrip() for line in linksFile]
+    linksFile.close()
+
+    folder = 'data'
     if os.path.isdir(folder):
         shutil.rmtree(folder)
     os.mkdir(folder)
@@ -87,10 +92,6 @@ if __name__ == "__main__":
     data_headers = ['Id', 'Manufacturer', 'Model', 'Category', 'Mileage', 'Gear box type', 'Doors',
                     'Wheel', 'Color', 'Interior color', 'VIN', 'Leather interior', 'Price', 'Customs']
 
-    # read links
-    linksFile = open('SabaLinks.txt', 'r')
-    links = [line.rstrip() for line in linksFile]
-    linksFile.close()
     # write headers
     f = open('cars.csv', "w", encoding='utf-8')
     data_headers_str = ','.join(data_headers) + '\n'
@@ -100,11 +101,14 @@ if __name__ == "__main__":
     driver = webdriver.Chrome()
     # iterate over each car
     cur_data_str = ''
-    for car_url in links:
+    for ind, car_url in enumerate(links):
+        print('Car {}/{} ... {}'.format(ind+1, len(links), car_url))
         # go to each car's url
         driver.get(car_url)
         car_soup = soup(driver.page_source, "html.parser")
 
+        if car_soup.find('div', {'class': 'error-wrapper'}):
+            continue
         # DATA
         car_data_dict = {header: '' for header in data_headers}
 
@@ -112,10 +116,10 @@ if __name__ == "__main__":
         saveImages(car_data_dict['Id'], car_soup)
 
         # create string
-        cur_data_str += ','.join([car_data_dict[x].replace('\n', ' ')
-                                  for x in data_headers]) + '\n'
-    f.write(cur_data_str)
+        cur_data_str = ','.join([car_data_dict[x].replace('\n', ' ')
+                                 for x in data_headers]) + '\n'
+        f.write(cur_data_str)
 
     driver.close()
-    exit()
     f.close()  # Close the file
+    exit()
