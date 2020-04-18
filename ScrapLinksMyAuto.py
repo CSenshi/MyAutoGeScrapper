@@ -3,7 +3,8 @@ from urllib.request import urlretrieve, urlopen as uReq  # Web client
 import datetime
 import os
 from selenium import webdriver
-
+from multiprocessing import Process, Value, Pool
+import datetime
 import shutil
 
 
@@ -24,7 +25,7 @@ def saveImages(car_id, car_soup):
     os.chdir('..')
 
 
-def saveCSV(car_url, car_data_dict):
+def saveCSV(car_url, car_data_dict, car_soup):
     # FEATURE: car ID
     car_id = car_url.split('/')[5]
     car_data_dict['Id'] = car_id
@@ -77,13 +78,46 @@ def saveCSV(car_url, car_data_dict):
                 car_data_dict[th2_key] = th2_value
 
 
+def scrapLink(links,):
+    data_headers = ['Id', 'Manufacturer', 'Model', 'Category', 'Mileage', 'Gear box type', 'Doors',
+                    'Wheel', 'Color', 'Interior color', 'VIN', 'Leather interior', 'Price', 'Customs']
+
+    start = datetime.datetime.now()
+    driver = webdriver.Chrome()
+    for ind, car_url in enumerate(links):
+        try:
+            now = datetime.datetime.now()
+            # counter.value += 1
+            print('Thread Cars {}/{} -- Time Elapsed {}'.format(ind +
+                                                                1, len(links), now-start))
+
+            # go to each car's url
+            driver.get(car_url)
+            car_soup = soup(driver.page_source, "html.parser")
+
+            if car_soup.find('div', {'class': 'error-wrapper'}):
+                continue
+            # DATA
+            car_data_dict = {header: '' for header in data_headers}
+
+            saveCSV(car_url, car_data_dict, car_soup)
+            saveImages(car_data_dict['Id'], car_soup)
+            # create string
+            cur_data_str = ','.join([car_data_dict[x].replace('\n', ' ')
+                                     for x in data_headers]) + '\n'
+        except:
+            print("Error while processing..")
+    driver.close()
+    return
+
+
 if __name__ == "__main__":
     # read links
     linksFile = open('SabaLinks.txt', 'r')
     links = [line.rstrip() for line in linksFile]
     linksFile.close()
 
-    folder = 'data'
+    folder = 'data`'
     if os.path.isdir(folder):
         shutil.rmtree(folder)
     os.mkdir(folder)
@@ -97,29 +131,26 @@ if __name__ == "__main__":
     data_headers_str = ','.join(data_headers) + '\n'
     f.write(data_headers_str)
 
-    start_time = datetime.datetime.now()
-    driver = webdriver.Chrome()
     # iterate over each car
-    cur_data_str = ''
-    for ind, car_url in enumerate(links):
-        print('Car {}/{} ... {}'.format(ind+1, len(links), car_url))
-        # go to each car's url
-        driver.get(car_url)
-        car_soup = soup(driver.page_source, "html.parser")
+    procces_count = 2
+    links_for_threads = []
+    chunks_size = len(links) // procces_count
 
-        if car_soup.find('div', {'class': 'error-wrapper'}):
-            continue
-        # DATA
-        car_data_dict = {header: '' for header in data_headers}
+    p = Pool(procces_count)
+    # divide data into threads
+    for i in range(procces_count):
+        if i == procces_count - 1:
+            links_for_threads += [links[chunks_size * i:]]
+        else:
+            links_for_threads += [links[chunks_size *
+                                        i: chunks_size * (i + 1)]]
 
-        saveCSV(car_url, car_data_dict)
-        saveImages(car_data_dict['Id'], car_soup)
+    # initialize and run threads
+    threads = []
+    counter = Value('i', 0)
+    records = p.map(scrapLink, links_for_threads)
+    p.terminate()
+    p.join()
 
-        # create string
-        cur_data_str = ','.join([car_data_dict[x].replace('\n', ' ')
-                                 for x in data_headers]) + '\n'
-        f.write(cur_data_str)
-
-    driver.close()
-    f.close()  # Close the file
+    f.close()
     exit()
