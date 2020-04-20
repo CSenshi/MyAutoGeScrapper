@@ -3,7 +3,7 @@ if __name__ == "__main__":
            open('BeqaLinks.txt', 'w'),
            open('NikaLinks.txt', 'w'), ]
 
-    with open('links.txt', 'r') as f:
+    with open('Links/links.txt', 'r') as f:
         links = [line.rstrip() for line in f]
         totalUsers = len(arr)
         for i in range(len(links)):
